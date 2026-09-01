@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-agrogreen-50: #f0fdf4;
+  --color-agrogreen-100: #dcfce7;
+  --color-agrogreen-500: #22c55e;
+  --color-agrogreen-600: #16a34a;
+  --color-agrogreen-700: #15803d;
+  --color-agrodark: #0f172a;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-800 font-sans;
+  }
+}
