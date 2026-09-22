@@ -24,8 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <html lang="es">
-      <body className={`${inter.className} flex h-screen overflow-hidden`}>
+    <html lang="es" suppressHydrationWarning>
+      <body className={`${inter.className} flex h-screen overflow-hidden`} suppressHydrationWarning>
           {/* Sidebar */}
           <aside className={`${sidebarOpen ? 'absolute z-50 h-full shadow-2xl' : 'hidden'} md:flex bg-agrodark text-gray-300 w-64 flex-shrink-0 flex-col transition-all duration-300`}>
             <div className="h-16 flex items-center px-6 border-b border-gray-800">
