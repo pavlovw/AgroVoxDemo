@@ -9,6 +9,8 @@ import {
   Sprout, FileText, Phone, Mail, User, MapPin
 } from "lucide-react";
 
+const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
 const MapaTopografico = dynamic(() => import("@/components/clientes/MapaTopografico"), { ssr: false, loading: () => <div className="w-full h-full bg-gray-50 flex items-center justify-center">Cargando...</div> });
 
 interface ClientePageProps { params: Promise<{ id: string }>; }
@@ -37,7 +39,7 @@ export default function ClienteDetalle({ params }: ClientePageProps) {
   useEffect(() => { cargarDatos(); }, [clienteId]);
 
   const cargarDatos = () => {
-    fetch(`http://localhost:3001/api/mapa/cliente/${clienteId}`)
+    fetch(`${URL_BACKEND}/api/mapa/cliente/${clienteId}`)
       .then(res => res.json())
       .then(data => { if (!data.error) { setCliente(data); setSectoresSeleccionados([]); }})
       .catch(err => console.error("Error obteniendo cliente:", err));
@@ -50,7 +52,7 @@ export default function ClienteDetalle({ params }: ClientePageProps) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const response = await fetch(`http://localhost:3001/api/mapa/cliente/${clienteId}/importar`, {
+        const response = await fetch(`${URL_BACKEND}/api/mapa/cliente/${clienteId}/importar`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(JSON.parse(e.target?.result as string))
         });
         if (response.ok) { alert("¡Polígonos importados con éxito!"); cargarDatos(); } 
@@ -67,7 +69,7 @@ export default function ClienteDetalle({ params }: ClientePageProps) {
   const confirmarEliminacionSectores = async () => {
     setEliminandoSectores(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/mapa/sectores`, {
+      const response = await fetch(`${URL_BACKEND}/api/mapa/sectores`, {
         method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sectorIds: sectoresSeleccionados })
       });
       if (response.ok) {
@@ -80,7 +82,7 @@ export default function ClienteDetalle({ params }: ClientePageProps) {
   const vincularNodoASector = async (sectorId: number) => {
     if (!nodoEnAsignacion) return;
     try {
-      const response = await fetch(`http://localhost:3001/api/mapa/nodos/${nodoEnAsignacion.id}/asignar`, {
+      const response = await fetch(`${URL_BACKEND}/api/mapa/nodos/${nodoEnAsignacion.id}/asignar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sectorId })
@@ -96,7 +98,7 @@ export default function ClienteDetalle({ params }: ClientePageProps) {
 
   const vincularGateway = async (gatewayId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/mapa/gateways/${gatewayId}/asignar`, {
+      const response = await fetch(`${URL_BACKEND}/api/mapa/gateways/${gatewayId}/asignar`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clienteId })
