@@ -41,7 +41,7 @@ export default function Clientes() {
 
   const cargarClientes = () => {
     setCargando(true);
-    fetch(`${URL_BACKEND}api/clientes`)
+    fetch(`${URL_BACKEND}/api/clientes`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
