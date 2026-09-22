@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin, AlertTriangle, Sprout, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 
-const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const MapaDinamico = dynamic(() => import('@/components/clientes/Mapa'), {
   ssr: false,
