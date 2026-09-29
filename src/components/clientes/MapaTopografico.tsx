@@ -6,7 +6,8 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001');
+const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const socket = io(URL_BACKEND);
 
 const crearIconoNodo = (estado: string) => L.divIcon({
   className: 'custom-leaflet-icon',

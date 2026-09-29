@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin, AlertTriangle, Sprout, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 
+const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
 const MapaDinamico = dynamic(() => import('@/components/clientes/Mapa'), {
   ssr: false,
   loading: () => (
@@ -39,7 +41,7 @@ export default function Clientes() {
 
   const cargarClientes = () => {
     setCargando(true);
-    fetch('http://localhost:3001/api/clientes')
+    fetch(`${URL_BACKEND}/api/clientes`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -79,7 +81,7 @@ export default function Clientes() {
     setGuardando(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/clientes', {
+      const response = await fetch(`${URL_BACKEND}/api/clientes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -95,7 +97,7 @@ export default function Clientes() {
       }
     } catch (error) {
       console.error("Error en la petición:", error);
-      alert("Error de conexión con el servidor backend (Puerto 3001)");
+      alert("Error de conexión con el servidor backend");
     } finally {
       setGuardando(false);
     }
@@ -106,7 +108,7 @@ export default function Clientes() {
     setEliminando(true);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/clientes/${clienteActivo.id}`, {
+      const response = await fetch(`${URL_BACKEND}/api/clientes/${clienteActivo.id}`, {
         method: 'DELETE'
       });
 
@@ -201,7 +203,6 @@ export default function Clientes() {
                   </div>
                 </div>
 
-                {/* Botón Ir a Detalles (Eliminamos la papelera de aquí) */}
                 <Link 
                   href={`/clientes/${cliente.id}`}
                   onClick={(e) => e.stopPropagation()}
