@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Polyline, useMap, useMapEvents, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { io } from 'socket.io-client';
+
 
 const URL_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 const socket = io(URL_BACKEND);
@@ -40,16 +41,29 @@ const iconoHuerfano = L.divIcon({
 
 function AutoCentrar({ datos }: { datos: any }) {
   const map = useMap();
+  // Guardamos si ya centramos la cámara para este cliente
+  const yaCentradoParaCliente = useRef<number | null>(null);
+
   useEffect(() => {
+    if (!datos?.id) return;
+
+    // Si ya centramos el mapa para este cliente, NO volvemos a mover la cámara al recargar datos
+    if (yaCentradoParaCliente.current === datos.id) return;
+
     if (datos?.sectores?.length > 0) {
       const coords = typeof datos.sectores[0].coordenadas === 'string' 
         ? JSON.parse(datos.sectores[0].coordenadas) 
         : datos.sectores[0].coordenadas;
-      if (coords && coords.length > 0) map.flyTo(coords[0], 16, { duration: 1.5 });
+      if (coords && coords.length > 0) {
+        map.flyTo(coords[0], 16, { duration: 1.5 });
+        yaCentradoParaCliente.current = datos.id; // Marcamos como centrado
+      }
     } else if (datos?.latitud && datos?.longitud) {
       map.flyTo([datos.latitud, datos.longitud], 15);
+      yaCentradoParaCliente.current = datos.id; // Marcamos como centrado
     }
   }, [datos, map]);
+
   return null;
 }
 
