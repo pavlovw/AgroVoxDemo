@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Polyline, useMap, useMapEvents, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { io } from 'socket.io-client';
@@ -42,12 +42,52 @@ function AutoCentrar({ datos }: { datos: any }) {
   const map = useMap();
   useEffect(() => {
     if (datos?.sectores?.length > 0) {
-      const coords = typeof datos.sectores[0].coordenadas === 'string' ? JSON.parse(datos.sectores[0].coordenadas) : datos.sectores[0].coordenadas;
+      const coords = typeof datos.sectores[0].coordenadas === 'string' 
+        ? JSON.parse(datos.sectores[0].coordenadas) 
+        : datos.sectores[0].coordenadas;
       if (coords && coords.length > 0) map.flyTo(coords[0], 16, { duration: 1.5 });
     } else if (datos?.latitud && datos?.longitud) {
       map.flyTo([datos.latitud, datos.longitud], 15);
     }
   }, [datos, map]);
+  return null;
+}
+
+// Captura clics, posición del mouse en vivo y fuerza el cursor en CRUZ (+)
+function ManejadorDibujo({ 
+  modoDibujo, 
+  onAgregarPunto,
+  onMoverMouse
+}: { 
+  modoDibujo: boolean, 
+  onAgregarPunto?: (coords: [number, number]) => void,
+  onMoverMouse?: (coords: [number, number] | null) => void
+}) {
+  const map = useMap();
+
+  // Forzamos que el contenedor interno de Leaflet use el cursor en cruz ('crosshair') y no la mano
+  useEffect(() => {
+    const container = map.getContainer();
+    if (modoDibujo) {
+      container.style.cursor = 'crosshair';
+    } else {
+      container.style.cursor = '';
+      if (onMoverMouse) onMoverMouse(null);
+    }
+  }, [modoDibujo, map]);
+
+  useMapEvents({
+    click(e) {
+      if (modoDibujo && onAgregarPunto) {
+        onAgregarPunto([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+    mousemove(e) {
+      if (modoDibujo && onMoverMouse) {
+        onMoverMouse([e.latlng.lat, e.latlng.lng]);
+      }
+    }
+  });
   return null;
 }
 
@@ -57,38 +97,134 @@ export default function MapaTopografico({
   nodoEnAsignacion,
   onIniciarAsignacion,
   onSectorClick,
-  onAsignarGateway
+  onAsignarGateway,
+  modoDibujo = false,
+  puntosDibujo = [],
+  onAgregarPunto
 }: { 
   datosMapa: any, 
   sectoresSeleccionados?: number[],
   nodoEnAsignacion?: any,
   onIniciarAsignacion?: (nodo: any) => void,
   onSectorClick?: (sectorId: number) => void,
-  onAsignarGateway?: (gatewayId: string) => void
+  onAsignarGateway?: (gatewayId: string) => void,
+  modoDibujo?: boolean,
+  puntosDibujo?: [number, number][],
+  onAgregarPunto?: (coords: [number, number]) => void
 }) {
+  // Estado para guardar dónde está el mouse en tiempo real mientras dibujas
+  const [posicionMouse, setPosicionMouse] = useState<[number, number] | null>(null);
 
   const parseCoords = (coords: any) => {
     if (!coords) return [];
     return typeof coords === 'string' ? JSON.parse(coords) : coords;
   };
 
-  if (!datosMapa) return <div className="flex h-full w-full items-center justify-center bg-gray-50 text-gray-500 animate-pulse">Cargando topografía de red...</div>;
+  if (!datosMapa) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-gray-50 text-gray-500 animate-pulse">
+        Cargando topografía de red...
+      </div>
+    );
+  }
 
   const todosLosNodos = datosMapa?.sectores?.flatMap((sector: any) => sector.nodos) || [];
   const centroInicial: [number, number] = [datosMapa?.latitud || -33.73, datosMapa?.longitud || -70.76];
 
-  return (
-    <MapContainer key={`mapa-${datosMapa.id}`} center={centroInicial} zoom={14} className="w-full h-full z-0">
-      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution='&copy; Esri' />
-      <AutoCentrar datos={datosMapa} />
+  // Combinamos los puntos ya clickeados + la posición actual del mouse para previsualizar el área en vivo
+  const puntosVistaPrevia = modoDibujo && posicionMouse && puntosDibujo.length > 0
+    ? [...puntosDibujo, posicionMouse]
+    : puntosDibujo;
 
+  return (
+    <MapContainer 
+      key={`mapa-${datosMapa.id}`} 
+      center={centroInicial} 
+      zoom={14} 
+      className="w-full h-full z-0"
+    >
+      <TileLayer 
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" 
+        attribution='&copy; Esri' 
+      />
+      <AutoCentrar datos={datosMapa} />
+      <ManejadorDibujo 
+        modoDibujo={modoDibujo} 
+        onAgregarPunto={onAgregarPunto} 
+        onMoverMouse={setPosicionMouse} 
+      />
+
+      {/* POLÍGONO Y LÍNEAS EN TIEMPO REAL MIENTRAS MUEVES EL MOUSE */}
+      {modoDibujo && puntosDibujo.length > 0 && (
+        <>
+          {/* Si hay 1 solo click + el mouse, dibujamos una línea elástica que sigue al mouse */}
+          {puntosVistaPrevia.length === 2 && (
+            <Polyline 
+              positions={puntosVistaPrevia} 
+              pathOptions={{ color: '#eab308', weight: 2.5, dashArray: '6, 6' }} 
+            />
+          )}
+
+          {/* Si hay 2 o más clicks + el mouse (3+ vértices), se forma el área cerrada siguiendo al mouse */}
+          {puntosVistaPrevia.length >= 3 && (
+            <Polygon 
+              positions={puntosVistaPrevia} 
+              pathOptions={{ 
+                color: '#eab308', 
+                fillColor: '#fef08a', 
+                fillOpacity: 0.4, 
+                weight: 2.5, 
+                dashArray: '6, 6' 
+              }} 
+            />
+          )}
+
+          {/* Puntos fijos donde ya hiciste clic */}
+          {puntosDibujo.map((punto, idx) => (
+            <CircleMarker 
+              key={`punto-dibujo-${idx}`} 
+              center={punto} 
+              radius={5} 
+              pathOptions={{ 
+                color: '#ca8a04', 
+                fillColor: '#ffffff', 
+                fillOpacity: 1, 
+                weight: 2 
+              }} 
+            />
+          ))}
+        </>
+      )}
+
+      {/* 1. DIBUJA LA INFRAESTRUCTURA */}
       {datosMapa?.infraestructuras?.map((infra: any) => (
-        <Polygon key={`infra-${infra.id}`} positions={parseCoords(infra.coordenadas)} pathOptions={{ color: infra.color || '#9ca3af', fillColor: infra.color || '#9ca3af', fillOpacity: 0.6, weight: 2 }} >
-          <Popup className="font-sans"><span className="font-bold text-gray-800">{infra.nombre}</span><br/><span className="text-xs text-gray-500">Tipo: {infra.tipo}</span></Popup>
+        <Polygon 
+          key={`infra-${infra.id}`} 
+          positions={parseCoords(infra.coordenadas)} 
+          eventHandlers={{
+            click: (e) => {
+              if (modoDibujo && onAgregarPunto) {
+                onAgregarPunto([e.latlng.lat, e.latlng.lng]);
+              }
+            }
+          }}
+          pathOptions={{ 
+            color: infra.color || '#9ca3af', 
+            fillColor: infra.color || '#9ca3af', 
+            fillOpacity: 0.6, 
+            weight: 2 
+          }} 
+        >
+          {!modoDibujo && (
+            <Popup className="font-sans">
+              <span className="font-bold text-gray-800">{infra.nombre}</span><br/>
+              <span className="text-xs text-gray-500">Tipo: {infra.tipo}</span>
+            </Popup>
+          )}
         </Polygon>
       ))}
 
-      {/* LOS SECTORES AHORA ESCUCHAN CLICS PARA ASIGNAR */}
+      {/* 2. DIBUJA LOS SECTORES */}
       {datosMapa?.sectores?.map((sector: any) => {
         const isSelected = sectoresSeleccionados.includes(sector.id);
         const colorPoligono = isSelected ? '#ef4444' : sector.color;
@@ -98,8 +234,11 @@ export default function MapaTopografico({
             key={`sector-${sector.id}`} 
             positions={parseCoords(sector.coordenadas)} 
             eventHandlers={{
-              click: () => {
-                // Si hay un nodo esperando ser asignado, el clic en el polígono dispara la función
+              click: (e) => {
+                if (modoDibujo && onAgregarPunto) {
+                  onAgregarPunto([e.latlng.lat, e.latlng.lng]);
+                  return;
+                }
                 if (nodoEnAsignacion && onSectorClick) {
                   onSectorClick(sector.id);
                 }
@@ -108,32 +247,43 @@ export default function MapaTopografico({
             pathOptions={{ 
               color: colorPoligono, 
               fillColor: colorPoligono, 
-              // Si estamos en modo asignación, resaltamos un poco los polígonos
               fillOpacity: isSelected ? 0.6 : (nodoEnAsignacion ? 0.4 : 0.25), 
               weight: isSelected ? 3 : 2 
             }} 
           >
-            <Popup className="font-sans">
-              <span className="font-bold text-gray-800">{sector.nombre}</span><br/>
-              Cultivo: {sector.cultivo}
-            </Popup>
+            {!modoDibujo && (
+              <Popup className="font-sans">
+                <span className="font-bold text-gray-800">{sector.nombre}</span><br/>
+                Cultivo: {sector.cultivo}
+                {isSelected && <span className="block mt-1 text-xs font-bold text-red-600">SELECCIONADO PARA BORRAR</span>}
+              </Popup>
+            )}
           </Polygon>
         );
       })}
 
+      {/* 3. GATEWAYS ASIGNADOS */}
       {datosMapa?.gateways?.map((gw: any) => (
         <Marker key={gw.id} position={[gw.latitud, gw.longitud]} icon={iconoGateway}>
-          <Popup className="rounded-lg"><span className="font-bold text-blue-600">{gw.nombre}</span><br/>Estado: {gw.estado}</Popup>
+          <Popup className="rounded-lg">
+            <span className="font-bold text-blue-600">{gw.nombre}</span><br/>
+            Estado: {gw.estado}
+          </Popup>
         </Marker>
       ))}
 
+      {/* 4. NODOS ASIGNADOS */}
       {todosLosNodos.map((nodo: any) => (
         <Marker key={nodo.id} position={[nodo.latitud, nodo.longitud]} icon={crearIconoNodo(nodo.estado)}>
-          <Popup className="rounded-lg"><span className={`font-bold ${nodo.estado === 'ALERTA' ? 'text-red-600' : 'text-gray-900'}`}>{nodo.id}</span></Popup>
+          <Popup className="rounded-lg">
+            <span className={`font-bold ${nodo.estado === 'ALERTA' ? 'text-red-600' : 'text-gray-900'}`}>
+              {nodo.id}
+            </span>
+          </Popup>
         </Marker>
       ))}
 
-      {/* NODOS HUÉRFANOS CON BOTÓN VINCULAR */}
+      {/* 5. NODOS HUÉRFANOS CON BOTÓN VINCULAR */}
       {datosMapa?.nodosHuerfanos?.map((nodo: any) => (
         <Marker key={`huerfano-${nodo.id}`} position={[nodo.latitud, nodo.longitud]} icon={iconoHuerfano}>
           <Popup className="rounded-lg min-w-[120px]">
@@ -150,7 +300,7 @@ export default function MapaTopografico({
         </Marker>
       ))}
 
-      {/* GATEWAYS HUÉRFANOS CON BOTÓN VINCULAR */}
+      {/* 6. GATEWAYS HUÉRFANOS CON BOTÓN VINCULAR */}
       {datosMapa?.gatewaysHuerfanos?.map((gw: any) => (
         <Marker key={`gw-huerfano-${gw.id}`} position={[gw.latitud, gw.longitud]} icon={iconoHuerfano}>
           <Popup className="rounded-lg min-w-[120px]">
